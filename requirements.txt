@@ -1,0 +1,6 @@
+pgmpy>=0.1.23
+matplotlib
+numpy
+pandas
+seaborn
+tqdm
