@@ -7,7 +7,7 @@ import pandas as pd
 import seaborn as sns
 from tqdm import tqdm
 
-from PY_Scripts.Data_Generating_mechanisms import DGP_REGISTRY
+from benchmarks.Data_Generating_mechanisms import DGP_REGISTRY
 from pgmpy.estimators import CITests
 
 warnings.filterwarnings("ignore", message="divide by zero encountered in divide")
@@ -291,13 +291,18 @@ def plot_benchmarks(df_summary, plot_dir="plots"):
 
 
 if __name__ == "__main__":
+    os.makedirs("results", exist_ok=True)
     df_results = run_benchmark()
-    df_results.to_csv("ci_benchmark_raw_result.csv", index=False)
+    df_results.to_csv("results/ci_benchmark_raw_result.csv", index=False)
 
     df_summary = compute_summary(df_results)
-    df_summary.to_csv("ci_benchmark_summaries.csv", index=False)
+    df_summary.to_csv("results/ci_benchmark_summaries.csv", index=False)
     print(df_summary)
     print(
         "\nDetailed results and summary saved to ci_benchmark_raw_result.csv and ci_benchmark_summaries.csv"
     )
+    raw_csv_path = "results/ci_benchmark_raw_result.csv"
+    if os.path.exists(raw_csv_path):
+        os.remove(raw_csv_path)
+
     plot_benchmarks(df_summary)
