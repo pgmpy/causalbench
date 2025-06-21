@@ -54,9 +54,9 @@ def linear_gaussian(
     Y = Zs @ coef_ZY + effect_size * X + rng.normal(size=n_samples)
 
     # Step 4: Create a dataframe and return.
-    data = pd.DataFrame({"X": X, "Y": Y})
+    df = pd.DataFrame({"X": X, "Y": Y})
     for j in range(n_cond_vars):
-        data[f"Z{j+1}"] = Zs[:, j]
+        df[f"Z{j+1}"] = Zs[:, j]
 
     return df
 
