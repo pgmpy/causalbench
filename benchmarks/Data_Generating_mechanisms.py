@@ -6,10 +6,8 @@ from scipy.stats import bernoulli, expon, multinomial, norm, uniform
 def linear_gaussian(
     n_samples=1000,
     effect_size=1.0,
-    noise_std=1.0,
     n_cond_vars=1,
     seed=None,
-    dependent=True,
 ):
     """
     Linear Gaussian DGP:
@@ -22,14 +20,10 @@ def linear_gaussian(
         Number of samples to generate.
     effect_size : float, optional
         Coefficient for Z in X and Y.
-    noise_std : float, optional
-        Standard deviation of noise.
     n_cond_vars : int, optional
         Number of conditional variables (vector-valued Z).
     seed : int, optional
         Random seed.
-    dependent : bool, optional
-        If True, generates conditionally dependent data; else independent.
 
     Returns
     -------
@@ -40,16 +34,12 @@ def linear_gaussian(
     """
     rng = np.random.default_rng(seed)
     Z = rng.normal(size=(n_samples, n_cond_vars))
-    e1 = rng.normal(scale=noise_std, size=n_samples)
-    e2 = rng.normal(scale=noise_std, size=n_samples)
-    X = effect_size * Z.sum(axis=1) + e1
-    Y = effect_size * Z.sum(axis=1) + e2
-    if dependent:
-        X = effect_size * Z.sum(axis=1) + e1
-        Y = effect_size * Z.sum(axis=1) + e2
-    else:
-        X = effect_size * Z.sum(axis=1) + e1
-        Y = effect_size * rng.normal(size=n_samples) + e2  # Break dependence
+    coef_ZX = rng.uniform(0, 1, size=n_cond_vars)
+    coef_ZY = rng.uniform(0, 1, size=n_cond_vars)
+    e1 = rng.normal(size=n_samples)
+    e2 = rng.normal(size=n_samples)
+    X = Z @ coef_ZX + e1
+    Y = Z @ coef_ZY + effect_size * X + e2 
     data = {"X": X, "Y": Y}
     for j in range(n_cond_vars):
         data[f"Z{j+1}"] = Z[:, j]
