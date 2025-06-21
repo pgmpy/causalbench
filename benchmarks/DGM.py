@@ -10,45 +10,54 @@ def linear_gaussian(
     seed=None,
 ):
     """
-    Linear Gaussian DGP:
+    Uses Linear model to generate data. The model is defined as:
 
-    Generates data where X and Y are (conditionally) dependent or independent given Z.
+        ..math:: Z \sim \mathcal{N}(\bm{0}, \bm{1})
+        ..math:: \alpha, \beta \sim \textrm{Uniform(0, 1)}
+        ..math:: X \sim \mathcal{N}(\alpha * Z) + \mathcal{N}(0, 1)
+        ..math:: Y \sim \mathcal{N}(\beta * Z + effect * X) + \mathcal{N}(0, 1)
+
+    When effect_size = 0, the generated data satisfies $ X \ci Y \rvert Z $.
 
     Parameters
     ----------
     n_samples : int, optional
         Number of samples to generate.
+
     effect_size : float, optional
-        Coefficient for Z in X and Y.
+        Defines how strongly X and Y are dependent. If 0, X and Y are conditionally
+        independent.
+
     n_cond_vars : int, optional
-        Number of conditional variables (vector-valued Z).
+        Number of conditional variables to generate.
+
     seed : int, optional
-        Random seed.
+        Seed for the random number generator.
 
     Returns
     -------
     df : pandas.DataFrame
         DataFrame with columns ['X', 'Y', 'Z1', ...].
-        Variable types are in df.attrs['variable_types'].
-    Reference: Spirtes, Glymour & Scheines (2000), "Causation, Prediction, and Search"
     """
+    # Step 0: Initialize the random number generator.
     rng = np.random.default_rng(seed)
-    Z = rng.normal(size=(n_samples, n_cond_vars))
+
+    # Step 1: Sample the Zs.
+    Zs = rng.normal(size=(n_samples, n_cond_vars))
+
+    # Step 2: Sample X.
     coef_ZX = rng.uniform(0, 1, size=n_cond_vars)
+    X = Zs @ coef_ZX + rng.normal(size=n_samples)
+
+    # Step 3: Sample Y.
     coef_ZY = rng.uniform(0, 1, size=n_cond_vars)
-    e1 = rng.normal(size=n_samples)
-    e2 = rng.normal(size=n_samples)
-    X = Z @ coef_ZX + e1
-    Y = Z @ coef_ZY + effect_size * X + e2 
-    data = {"X": X, "Y": Y}
+    Y = Zs @ coef_ZY + effect_size * X + rng.normal(size=n_samples)
+
+    # Step 4: Create a dataframe and return.
+    data = pd.DataFrame({"X": X, "Y": Y})
     for j in range(n_cond_vars):
-        data[f"Z{j+1}"] = Z[:, j]
-    df = pd.DataFrame(data)
-    df.attrs["variable_types"] = {
-        "X": "continuous",
-        "Y": "continuous",
-        **{f"Z{j+1}": "continuous" for j in range(n_cond_vars)},
-    }
+        data[f"Z{j+1}"] = Zs[:, j]
+
     return df
 
 

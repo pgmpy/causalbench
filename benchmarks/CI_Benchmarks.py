@@ -7,7 +7,7 @@ import pandas as pd
 import seaborn as sns
 from tqdm import tqdm
 
-from benchmarks.Data_Generating_mechanisms import DGP_REGISTRY
+from benchmarks.DGM import DGP_REGISTRY
 from pgmpy.estimators import CITests
 
 warnings.filterwarnings("ignore", message="divide by zero encountered in divide")
