@@ -169,11 +169,9 @@ def discrete_categorical(
 def mixed_data(
     n_samples=1000,
     effect_size=1.0,
-    noise_std=1.0,
     n_cond_vars=1,
     n_cat=2,
     seed=None,
-    dependent=True,
 ):
     """
     Mixed continuous and categorical DGP:
@@ -182,11 +180,9 @@ def mixed_data(
     ----------
     n_samples : int
     effect_size : float
-    noise_std : float
     n_cond_vars : int
     n_cat : int
     seed : int
-    dependent : bool
 
     Returns
     -------
@@ -197,18 +193,12 @@ def mixed_data(
     """
     rng = np.random.default_rng(seed)
     Z = rng.integers(0, n_cat, size=(n_samples, n_cond_vars))
-    e1 = rng.normal(scale=noise_std, size=n_samples)
-    e2 = rng.normal(scale=noise_std, size=n_samples)
-    Z_sum = Z.sum(axis=1)
-    if dependent:
-        X = effect_size * Z_sum + e1
-        Y = 0.5 * effect_size * Z_sum + e2
-    else:
-        X = effect_size * Z_sum + e1
-        Y = (
-            0.5 * effect_size * rng.integers(0, n_cat * n_cond_vars, size=n_samples)
-            + e2
-        )
+    coef_ZX = rng.uniform(0, 1, size=n_cond_vars)
+    coef_ZY = rng.uniform(0, 1, size=n_cond_vars)
+    e1 = rng.normal(size=n_samples)
+    e2 = rng.normal(size=n_samples)
+    X = Z @ coef_ZX + e1
+    Y = (Z @ coef_ZY) + effect_size * X + e2
     data = {"X": X, "Y": Y}
     for j in range(n_cond_vars):
         data[f"Z{j+1}"] = Z[:, j]
@@ -223,7 +213,6 @@ def non_gaussian_continuous(
     n_samples=1000,
     effect_size=1.0,
     n_cond_vars=1,
-    noise_std=1.0,
     seed=None,
     dependent=True,
 ):
@@ -234,11 +223,8 @@ def non_gaussian_continuous(
     ----------
     n_samples : int
     effect_size : float
-    noise_std : float
-        Not used, kept for API consistency.
     n_cond_vars : int
     seed : int
-    dependent : bool
 
     Returns
     -------
@@ -249,15 +235,12 @@ def non_gaussian_continuous(
     """
     rng = np.random.default_rng(seed)
     Z = rng.uniform(-2, 2, size=(n_samples, n_cond_vars))
+    coef_ZX = rng.uniform(0, 1, size=n_cond_vars)
+    coef_ZY = rng.uniform(0, 1, size=n_cond_vars)
     e1 = rng.exponential(scale=1.0, size=n_samples)
     e2 = rng.exponential(scale=1.0, size=n_samples)
-    Z_sum = Z.sum(axis=1)
-    if dependent:
-        X = effect_size * np.abs(Z_sum) + e1
-        Y = effect_size * (Z_sum) ** 2 + e2
-    else:
-        X = effect_size * np.abs(Z_sum) + e1
-        Y = effect_size * rng.uniform(-2, 2, size=n_samples) ** 2 + e2
+    X = np.abs(Z @ coef_ZX) + e1
+    Y = (Z @ coef_ZY) ** 2 + effect_size * X + e2
     data = {"X": X, "Y": Y}
     for j in range(n_cond_vars):
         data[f"Z{j+1}"] = Z[:, j]
