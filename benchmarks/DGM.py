@@ -2,6 +2,13 @@ import numpy as np
 import pandas as pd
 from scipy.stats import bernoulli, expon, multinomial, norm, uniform
 
+DGP_REGISTRY = {
+    "linear_gaussian": linear_gaussian,
+    "nonlinear_gaussian": nonlinear_gaussian,
+    "discrete_categorical": discrete_categorical,
+    "mixed_data": mixed_data,
+    "non_gaussian_continuous": non_gaussian_continuous,
+}
 
 def linear_gaussian(
     n_samples=1000,
@@ -114,9 +121,6 @@ def nonlinear_gaussian(
         **{f"Z{j+1}": "continuous" for j in range(n_cond_vars)},
     }
     return df
-
-
-# --- NEW DGMs ADDED LATER ---
 
 
 def discrete_categorical(
@@ -260,25 +264,3 @@ def non_gaussian_continuous(
         **{f"Z{j+1}": "continuous" for j in range(n_cond_vars)},
     }
     return df
-
-
-#  NEW DGMS WILL BE ADDED HERE
-
-
-# Optionally, a registry for easy reference
-DGP_REGISTRY = {
-    "linear_gaussian": linear_gaussian,
-    "nonlinear_gaussian": nonlinear_gaussian,
-    "discrete_categorical": discrete_categorical,
-    "mixed_data": mixed_data,
-    "non_gaussian_continuous": non_gaussian_continuous,
-}
-
-# Example usage for testing:
-if __name__ == "__main__":
-    for name, func in DGP_REGISTRY.items():
-        if name == "user_defined":
-            continue
-        print(f"Generating data for {name}...")
-        df = func(n_samples=100, seed=42)
-        print(df.head())

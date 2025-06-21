@@ -10,7 +10,6 @@ from tqdm import tqdm
 from benchmarks.DGM import DGP_REGISTRY
 from pgmpy.estimators import CITests
 
-warnings.filterwarnings("ignore", message="divide by zero encountered in divide")
 
 DGM_TO_CITESTS = {
     "linear_gaussian": ["pearsonr", "gcm", "pillai"],
@@ -18,8 +17,8 @@ DGM_TO_CITESTS = {
     "non_gaussian_continuous": ["gcm", "pillai"],
     "discrete_categorical": [
         "chi_square",
+        "g_sq",
         "log_likelihood",
-        "modified_log_likelihood",
         "pillai",
     ],
     "mixed_data": ["pillai"],
@@ -41,37 +40,35 @@ def run_benchmark(
     dgms=dgms,
     dgm_to_citests=DGM_TO_CITESTS,
     ci_tests=ci_tests,
-    sample_sizes=[20, 40, 100, 500, 1000],
-    n_cond_vars_list=[1, 3],
-    effect_sizes=[0.0, 0.2, 0.5, 1.0],
+    sample_sizes=[20, 40, 80, 160, 320, 640],
+    n_cond_vars=[1, 3, 5, 7],
+    effect_sizes=np.linspace(0, 1, 6),
     n_repeats=10,
 ):
 
     results = []
-    for dgm_name, dgm in tqdm(dgms.items(), desc="DGMs"):
+
+    dgm_pbar = tqdm(dgms.items())
+    for dgm_name, dgm in dgm_pbar:
+        dgm_pbar.set_description(f"Running benchmark for {dgm_name}")
+
         compatible_tests = dgm_to_citests[dgm_name]
-        for n_cond_vars in tqdm(n_cond_vars_list, desc="n_cond_vars", leave=False):
-            for n in tqdm(sample_sizes, desc="sample_size", leave=False):
+        for n_cond_var in tqdm(n_cond_vars, desc="No. of conditional variables", leave=False):
+            for n in tqdm(sample_sizes, desc="Sample Size", leave=False):
                 # Null case (conditionally independent, effect size = 0)
                 for rep in range(n_repeats):
-                    dgm_kwargs = dict(
-                        n_samples=n,
-                        effect_size=0.0,
-                        n_cond_vars=n_cond_vars,
-                        seed=rep,
-                        dependent=False,
-                    )
-                    df = dgm(**dgm_kwargs)
-                    z_cols = [
-                        col
-                        for col, typ in df.attrs["variable_types"].items()
-                        if col.startswith("Z")
-                    ]
+                    df = dgm(n_samples=n,
+                             effect_size=0.0,
+                             n_cond_vars=n_cond_vars,
+                             seed=rep,
+                             )
+
+                    z_cols = list(df.drop(['X', 'Y'], axis=1).columns)
+
                     for test_name in compatible_tests:
                         ci_func = ci_tests[test_name]
-                        p_val = ci_func("X", "Y", z_cols, df, boolean=False)
-                        if isinstance(p_val, tuple):
-                            p_val = p_val[1]
+                        p_val, _ = ci_func("X", "Y", z_cols, df, boolean=False)
+
                         results.append(
                             {
                                 "dgm": dgm_name,
@@ -80,7 +77,7 @@ def run_benchmark(
                                 "effect_size": 0.0,
                                 "repeat": rep,
                                 "ci_test": test_name,
-                                "dependent": False,
+                                "cond_independent": True,
                                 "p_value": p_val,
                             }
                         )
@@ -89,24 +86,17 @@ def run_benchmark(
                     if eff == 0.0:
                         continue
                     for rep in range(n_repeats):
-                        dgm_kwargs = dict(
-                            n_samples=n,
-                            effect_size=eff,
-                            n_cond_vars=n_cond_vars,
-                            seed=rep,
-                            dependent=True,
-                        )
-                        df = dgm(**dgm_kwargs)
-                        z_cols = [
-                            col
-                            for col, typ in df.attrs["variable_types"].items()
-                            if col.startswith("Z")
-                        ]
+                        df = dgm(n_samples=n,
+                                 effect_size=eff,
+                                 n_cond_vars=n_cond_vars,
+                                 seed=rep,
+                                 )
+                        z_cols = list(df.drop(['X', 'Y'], axis=1).columns)
+
                         for test_name in compatible_tests:
                             ci_func = ci_tests[test_name]
-                            p_val = ci_func("X", "Y", z_cols, df, boolean=False)
-                            if isinstance(p_val, tuple):
-                                p_val = p_val[1]
+                            p_val, _ = ci_func("X", "Y", z_cols, df, boolean=False)
+
                             results.append(
                                 {
                                     "dgm": dgm_name,
@@ -115,12 +105,12 @@ def run_benchmark(
                                     "effect_size": eff,
                                     "repeat": rep,
                                     "ci_test": test_name,
-                                    "dependent": True,
+                                    "cond_independent": False,
                                     "p_value": p_val,
                                 }
                             )
-    df_results = pd.DataFrame(results)
-    return df_results
+
+    return pd.DataFrame(results)
 
 
 def compute_summary(df_results, significance_levels=[0.001, 0.01, 0.05, 0.1]):
