@@ -77,25 +77,36 @@ def nonlinear_gaussian(
     dependent=True,
 ):
     """
-    Nonlinear Gaussian DGP:
+    Uses a Non-Linear Gaussian model to generate data. The model is defined as:
 
-    Generates data where X and Y are nonlinear functions of Z, optionally (conditionally) dependent or independent.
+        ..math:: Z \sim \mathcal{N}(\mathbf{0}, \mathbf{1})
+        ..math:: X = \sin(effect\_size \cdot \sum_j Z_j) + \epsilon_1
+        ..math:: Y = \exp(effect\_size \cdot \sum_j Z_j \cdot 0.2) + \epsilon_2 \quad \text{if dependent}
+        ..math:: Y = \exp(effect\_size \cdot N(0, 1) \cdot 0.2) + \epsilon_2 \quad \text{if independent}
+
+    When dependent=False, the generated data satisfies $ X \ci Y \mid Z $.
 
     Parameters
     ----------
     n_samples : int, optional
+        Number of samples to generate.
+
     effect_size : float, optional
-    noise_std : float, optional
+        Controls the strength of the nonlinear transformation.
+
     n_cond_vars : int, optional
+        Number of conditional variables to generate.
+
     seed : int, optional
+        Seed for the random number generator.
+
     dependent : bool, optional
+        Whether X and Y are dependent (True) or independent (False) given Z.
 
     Returns
     -------
     df : pandas.DataFrame
         DataFrame with columns ['X', 'Y', 'Z1', ...].
-        Variable types are in df.attrs['variable_types'].
-
     Reference: Peters et al (2011), "Causal inference by using invariant prediction"
     """
     rng = np.random.default_rng(seed)
@@ -134,26 +145,44 @@ def discrete_categorical(
     dependent=True,
 ):
     """
-    Discrete (categorical) DGP:
+    Uses a discrete categorical model to generate data. The model is defined as:
+
+        ..math:: Z_j \sim \mathrm{DiscreteUniform}(0, n\_categories-1)
+        ..math:: X = \sum_j Z_j + \text{noise}
+        ..math:: Y = \sum_j Z_j + \text{noise} \quad \text{if dependent}
+        ..math:: Y \sim \mathrm{DiscreteUniform}(0, n\_categories \cdot n\_cond\_vars - 1) + \text{noise} \quad \text{if independent}
+
+    Randomly introduces noise to X and Y with probability `noise_prob`.
+
+    When dependent=False, the generated data satisfies $ X \ci Y \mid Z $.
 
     Parameters
     ----------
-    n_samples : int
-    effect_size : float
-    noise_std : float
-        Not used, kept for API consistency.
-    n_cond_vars : int
-        Number of conditional variables (vector-valued Z).
-    n_categories : int
-    noise_prob : float
-    seed : int
-    dependent : bool
+    n_samples : int, optional
+        Number of samples to generate.
+
+    effect_size : float, optional
+        Not used (for API compatibility).
+
+    n_cond_vars : int, optional
+        Number of conditional variables to generate.
+
+    n_categories : int, optional
+        Number of categories for each Z.
+
+    noise_prob : float, optional
+        Probability of flipping X or Y to a random value.
+
+    seed : int, optional
+        Seed for the random number generator.
+
+    dependent : bool, optional
+        Whether X and Y are dependent (True) or independent (False) given Z.
 
     Returns
     -------
     df : pandas.DataFrame
         DataFrame with columns ['X', 'Y', 'Z1', ...].
-        Variable types are in df.attrs['variable_types'].
     Reference: Scutari, Denis (2021), "Bayesian Networks: With Examples in R"
     """
     rng = np.random.default_rng(seed)
@@ -187,21 +216,36 @@ def mixed_data(
     seed=None,
 ):
     """
-    Mixed continuous and categorical DGP:
+    Uses a Mixed model to generate continuous X/Y and categorical Z. The model is defined as:
+
+        ..math:: Z_j \sim \mathrm{DiscreteUniform}(0, n\_cat-1)
+        ..math:: \alpha, \beta \sim \mathrm{Uniform}(0, 1)
+        ..math:: X = Z \cdot \alpha + \mathcal{N}(0, 1)
+        ..math:: Y = Z \cdot \beta + effect\_size \cdot X + \mathcal{N}(0, 1)
+
+    When effect_size = 0, the generated data satisfies $ X \ci Y \mid Z $.
 
     Parameters
     ----------
-    n_samples : int
-    effect_size : float
-    n_cond_vars : int
-    n_cat : int
-    seed : int
+    n_samples : int, optional
+        Number of samples to generate.
+
+    effect_size : float, optional
+        Strength of dependence from X to Y.
+
+    n_cond_vars : int, optional
+        Number of conditional variables to generate.
+
+    n_cat : int, optional
+        Number of categories for each Z.
+
+    seed : int, optional
+        Seed for the random number generator.
 
     Returns
     -------
     df : pandas.DataFrame
         DataFrame with columns ['X', 'Y', 'Z1', ...].
-        Variable types are in df.attrs['variable_types'].
     Reference: Ghassami et al (2017), "Learning Mixed Graphical Models"
     """
     rng = np.random.default_rng(seed)
@@ -230,20 +274,37 @@ def non_gaussian_continuous(
     dependent=True,
 ):
     """
-    Non-Gaussian continuous DGP:
+    Uses a linear non-Gaussian acyclic model to generate continuous, non-Gaussian data. The model is defined as:
+
+        ..math:: Z_j \sim \mathrm{Uniform}(-2, 2)
+        ..math:: \alpha, \beta \sim \mathrm{Uniform}(0, 1)
+        ..math:: X = |\ Z \cdot \alpha\ | + e_1,\quad e_1 \sim \mathrm{Exponential}(1.0)
+        ..math:: Y = (Z \cdot \beta)^2 + effect\_size \cdot X + e_2, \quad e_2 \sim \mathrm{Exponential}(1.0), \text{if dependent}
+        ..math:: Y = (Z \cdot \beta)^2 + e_2, \quad e_2 \sim \mathrm{Exponential}(1.0), \text{if independent}
+
+    When dependent=False or effect_size=0, the generated data satisfies $ X \ci Y \mid Z $.
 
     Parameters
     ----------
-    n_samples : int
-    effect_size : float
-    n_cond_vars : int
-    seed : int
+    n_samples : int, optional
+        Number of samples to generate.
+
+    effect_size : float, optional
+        Strength of dependence from X to Y.
+
+    n_cond_vars : int, optional
+        Number of conditional variables to generate.
+
+    seed : int, optional
+        Seed for the random number generator.
+
+    dependent : bool, optional
+        Whether X and Y are dependent (True) or independent (False) given Z.
 
     Returns
     -------
     df : pandas.DataFrame
         DataFrame with columns ['X', 'Y', 'Z1', ...].
-        Variable types are in df.attrs['variable_types'].
     Reference: Shimizu et al (2006), "A Linear Non-Gaussian Acyclic Model for Causal Discovery"
     """
     rng = np.random.default_rng(seed)
