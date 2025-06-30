@@ -325,3 +325,11 @@ def non_gaussian_continuous(
         **{f"Z{j+1}": "continuous" for j in range(n_cond_vars)},
     }
     return df
+
+DGP_REGISTRY = {
+    "linear_gaussian": linear_gaussian,
+    "nonlinear_gaussian": nonlinear_gaussian,
+    "discrete_categorical": discrete_categorical,
+    "mixed_data": mixed_data,
+    "non_gaussian_continuous": non_gaussian_continuous,
+}

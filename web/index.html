@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>pgmpy Benchmark Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>pgmpy Causal Benchmark</h1>
+        <div class="controls">
+            <label>
+                Data Generating Method:
+                <select id="dgm-select"></select>
+            </label>
+            <label>
+                CI Test:
+                <select id="ci-test-select"></select>
+            </label>
+            <label>
+                Effect Size:
+                <select id="effect-size-select"></select>
+            </label>
+            <label>
+                Significance Level:
+                <select id="significance-level-select"></select>
+            </label>
+            <label>
+                <span class="csv-label">Results CSV: </span>
+                <input type="file" id="csv-input" accept=".csv"/>
+            </label>
+        </div>
+        <div class="charts">
+            <div class="chart-container">
+                <h2>Calibration Plot</h2>
+                <canvas id="calibration-plot"></canvas>
+            </div>
+            <div class="chart-container">
+                <h2>Power Plot</h2>
+                <canvas id="power-plot"></canvas>
+            </div>
+        </div>
+        <footer>
+            <span>© 2025 pgmpy causalbench &mdash; Powered by Chart.js</span>
+        </footer>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

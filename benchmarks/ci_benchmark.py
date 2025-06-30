@@ -30,6 +30,7 @@ ci_tests = {
     "pearsonr": CITests.pearsonr,
     "gcm": CITests.gcm,
     "chi_square": CITests.chi_square,
+    "g_sq": CITests.g_sq,
     "log_likelihood": CITests.log_likelihood,
     "modified_log_likelihood": CITests.modified_log_likelihood,
     "pillai": CITests.pillai_trace,
@@ -59,7 +60,7 @@ def run_benchmark(
                 for rep in range(n_repeats):
                     df = dgm(n_samples=n,
                              effect_size=0.0,
-                             n_cond_vars=n_cond_vars,
+                             n_cond_vars=n_cond_var,
                              seed=rep,
                              )
 
@@ -67,13 +68,23 @@ def run_benchmark(
 
                     for test_name in compatible_tests:
                         ci_func = ci_tests[test_name]
-                        p_val, _ = ci_func("X", "Y", z_cols, df, boolean=False)
+                        result = ci_func("X", "Y", z_cols, df, boolean=False)
+                        # Robust extraction of p-value
+                        if isinstance(result, tuple):
+                            # Heuristic: p-value is usually last in tuple
+                            if isinstance(result[-1], float):
+                                p_val = result[-1]
+                            else:
+                                # fallback to first item
+                                p_val = result[0]
+                        else:
+                            p_val = result
 
                         results.append(
                             {
                                 "dgm": dgm_name,
                                 "sample_size": n,
-                                "n_cond_vars": n_cond_vars,
+                                "n_cond_vars": n_cond_var,
                                 "effect_size": 0.0,
                                 "repeat": rep,
                                 "ci_test": test_name,
@@ -88,20 +99,28 @@ def run_benchmark(
                     for rep in range(n_repeats):
                         df = dgm(n_samples=n,
                                  effect_size=eff,
-                                 n_cond_vars=n_cond_vars,
+                                 n_cond_vars=n_cond_var,
                                  seed=rep,
                                  )
                         z_cols = list(df.drop(['X', 'Y'], axis=1).columns)
 
                         for test_name in compatible_tests:
                             ci_func = ci_tests[test_name]
-                            p_val, _ = ci_func("X", "Y", z_cols, df, boolean=False)
+                            result = ci_func("X", "Y", z_cols, df, boolean=False)
+                            # Robust extraction of p-value
+                            if isinstance(result, tuple):
+                                if isinstance(result[-1], float):
+                                    p_val = result[-1]
+                                else:
+                                    p_val = result[0]
+                            else:
+                                p_val = result
 
                             results.append(
                                 {
                                     "dgm": dgm_name,
                                     "sample_size": n,
-                                    "n_cond_vars": n_cond_vars,
+                                    "n_cond_vars": n_cond_var,
                                     "effect_size": eff,
                                     "repeat": rep,
                                     "ci_test": test_name,
@@ -120,8 +139,8 @@ def compute_summary(df_results, significance_levels=[0.001, 0.01, 0.05, 0.1]):
     summary_rows = []
     group_cols = ["dgm", "sample_size", "n_cond_vars", "effect_size", "ci_test"]
     for keys, group in df_results.groupby(group_cols):
-        null_group = group[~group["dependent"]]
-        alt_group = group[group["dependent"]]
+        null_group = group[group["cond_independent"]]
+        alt_group = group[~group["cond_independent"]]
         for sl in significance_levels:
             type1 = (
                 (null_group["p_value"] < sl).mean() if not null_group.empty else np.nan
