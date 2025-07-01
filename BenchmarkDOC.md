@@ -108,9 +108,9 @@ You get two main files after running the benchmark:
 
 ### Adding a New DGM
 
-1. Edit `PY_Scripts/data_generating_mechanisms.py` and define your function.
+1. Edit `benchmarks/DGM.py` and define your function.
 2. Add it to the `DGP_REGISTRY` dictionary.
-3. Optionally, add it to the `DGM_TO_CITESTS` mapping in `CI_Benchmarks.py`.
+3. Optionally, add it to the `DGM_TO_CITESTS` mapping in `ci_benchmarks.py`.
 
 ### Adding a New CI Test
 
