@@ -1,8 +1,4 @@
 /*------------------------------------
-   style.css — Minimalist / Material Theme
-------------------------------------*/
-
-/*------------------------------------
    Variables & Global Reset
 ------------------------------------*/
 :root {
@@ -52,13 +48,15 @@ body {
    Layout Container
 ------------------------------------*/
 .container {
-  max-width: 1000px;
+  width: calc(100% - 2 * var(--space-md));
+  max-width: none;
   margin: var(--space-xl) auto;
   padding: var(--space-xl);
   background-color: var(--color-surface);
   border-radius: 8px;
   box-shadow: var(--elevation-2);
 }
+
 
 /*------------------------------------
    Headings
