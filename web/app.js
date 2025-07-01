@@ -8,6 +8,27 @@ const effectSizeSelect = document.getElementById('effect-size-select');
 const significanceSelect = document.getElementById('significance-level-select');
 const csvInput = document.getElementById('csv-input');
 
+const DEFAULT_CSV = "results/default_ci_benchmark_summaries.csv"; 
+
+window.addEventListener('DOMContentLoaded', () => {
+    fetch(DEFAULT_CSV)
+        .then(res => {
+            if (!res.ok) throw new Error("Default CSV not found");
+            return res.text();
+        })
+        .then(csvText => {
+            allData = parseCSV(csvText);
+            buildDGMMap(allData);
+            populateDropdowns();
+            renderCharts();
+            // Optional: show a small message to user
+            showStatus("Loaded default benchmark results.", "success");
+        })
+        .catch(err => {
+            showStatus("Default results file not found. Please upload a CSV.", "warning");
+        });
+});
+
 csvInput.addEventListener('change', handleCSVUpload);
 
 dgmSelect.addEventListener('change', refreshControls);
