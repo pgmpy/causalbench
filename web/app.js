@@ -33,7 +33,7 @@ const csvInput = document.getElementById('csv-input');
 const dgmEquationEl = document.getElementById('dgm-equation');
 
 
-const DEFAULT_CSV = "results/default_ci_benchmark_summaries.csv"; 
+const DEFAULT_CSV = "results/ci_benchmark_summaries.csv"; 
 
 window.addEventListener('DOMContentLoaded', () => {
     fetch(DEFAULT_CSV)
