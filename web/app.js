@@ -1,24 +1,23 @@
-
 const DGM_META = {
     "linear_gaussian": {
         name: "Linear Gaussian",
-        equation: "X = \\alpha^T Z + \\varepsilon_1;\\\\ Y = \\beta^T Z + \\text{effect\\_size} \\cdot X + \\varepsilon_2"
+        equation: '\\( X = \\alpha^T Z + \\varepsilon_1;\\; Y = \\beta^T Z + \\text{effect\_size}\\cdot X + \\varepsilon_2 \\)'
     },
     "nonlinear_gaussian": {
         name: "Nonlinear Gaussian",
-        equation: "X = \\sin(\\text{effect\\_size} \\cdot \\sum_j Z_j) + \\varepsilon_1;\\\\ Y = \\exp(\\text{effect\\_size} \\cdot \\sum_j Z_j \\cdot 0.2) + \\varepsilon_2"
+        equation: '\\( X = \\sin(\\text{effect\_size} \\cdot \\sum_j Z_j) + \\varepsilon_1;\\; Y = \\exp(\\text{effect\_size} \\cdot \\sum_j Z_j \\cdot 0.2) + \\varepsilon_2 \\)'
     },
     "discrete_categorical": {
         name: "Discrete Categorical",
-        equation: "Z_j \\sim \\mathrm{DiscreteUniform}(0, n_{\\text{categories}}-1);\\\\ X = \\sum_j Z_j + \\text{noise};\\\\ Y = \\sum_j Z_j + \\text{noise}"
+        equation: '\\( Z_j \\sim \\mathrm{DiscreteUniform}(0, n_{\\text{categories}}-1);\\; X = \\sum_j Z_j + \\text{noise};\\; Y = \\sum_j Z_j + \\text{noise} \\)'
     },
     "mixed_data": {
         name: "Mixed Data",
-        equation: "X = Z^T \\alpha + \\varepsilon_1;\\\\ Y = Z^T \\beta + \\text{effect\\_size} \\cdot X + \\varepsilon_2"
+        equation: '\\( X = Z^T \\alpha + \\varepsilon_1;\\; Y = Z^T \\beta + \\text{effect\_size} \\cdot X + \\varepsilon_2 \\)'
     },
     "non_gaussian_continuous": {
         name: "Non-Gaussian Continuous",
-        equation: "X = |Z^T \\alpha| + e_1,\\ e_1 \\sim \\mathrm{Exponential}(1.0);\\\\ Y = (Z^T \\beta)^2 + \\text{effect\\_size} \\cdot X + e_2,\\ e_2 \\sim \\mathrm{Exponential}(1.0)"
+        equation: '\\( X = |Z^T \\alpha| + e_1,\\; e_1 \\sim \\mathrm{Exponential}(1.0);\\; Y = (Z^T \\beta)^2 + \\text{effect\\_size} \\cdot X + e_2,\\; e_2 \\sim \\mathrm{Exponential}(1.0) \\)'
     }
 };
 
@@ -27,13 +26,11 @@ let dgmMap = {};
 let chartCalibration, chartPower;
 
 const dgmSelect = document.getElementById('dgm-select');
-
 const sampleSizeSelect = document.getElementById('sample-size-select');
 const csvInput = document.getElementById('csv-input');
 const dgmEquationEl = document.getElementById('dgm-equation');
 
-
-const DEFAULT_CSV = "results/ci_benchmark_summaries.csv"; 
+const DEFAULT_CSV = "results/ci_benchmark_summaries.csv";
 
 window.addEventListener('DOMContentLoaded', () => {
     fetch(DEFAULT_CSV)
@@ -46,16 +43,14 @@ window.addEventListener('DOMContentLoaded', () => {
             buildDGMMap(allData);
             populateDropdowns();
             renderCharts();
-            // Optional: show a small message to user
-            showStatus("Loaded default benchmark results.", "success");
         })
-        .catch(err => {
-            showStatus("Default results file not found. Please upload a CSV.", "warning");
+        .catch(() => {
+            // file not found, don't crash
         });
 });
 
 csvInput.addEventListener('change', handleCSVUpload);
-dgmSelect.addEventListener('change', refreshControls);
+dgmSelect.addEventListener('change', onDGMChange);
 sampleSizeSelect.addEventListener('change', renderCharts);
 
 function handleCSVUpload(event) {
@@ -94,16 +89,23 @@ function buildDGMMap(data) {
         if (!dgmMap[dgm]) dgmMap[dgm] = new Set();
         dgmMap[dgm].add(row.sample_size);
     });
-    // Convert sets to arrays
     Object.keys(dgmMap).forEach(dgm => {
         dgmMap[dgm] = Array.from(dgmMap[dgm]).sort((a, b) => a - b);
     });
 }
 
-function populateDropdowns() {
+function setSelectOptions(select, list) {
+    select.innerHTML = '';
+    for (const obj of list) {
+        const option = document.createElement('option');
+        option.value = obj.value;
+        option.textContent = obj.label;
+        select.appendChild(option);
+    }
+}
 
+function populateDropdowns() {
     setSelectOptions(dgmSelect, Object.keys(dgmMap).map(d => ({ value: d, label: DGM_META[d]?.name || d })));
-    setSelectOptions(dgmSelect, Object.keys(dgmMap));
     onDGMChange();
 }
 
@@ -121,42 +123,20 @@ function updateDGMEquation() {
     if (window.MathJax) MathJax.typesetPromise([dgmEquationEl]);
 }
 
-function setSelectOptions(select, list) {
-    select.innerHTML = '';
-    for (const obj of list) {
-        const option = document.createElement('option');
-        option.value = obj.value;
-        option.textContent = obj.label;
-        select.appendChild(option);
-    }
-}
-function refreshControls() {
-    renderCharts();
-}
-
 function renderCharts() {
     if (!allData.length) return;
-    const dgm = dgmSelect.value, test = ciTestSelect.value;
-    const effect = parseFloat(effectSizeSelect.value);
-    const significance = parseFloat(significanceSelect.value);
+    const dgm = dgmSelect.value;
+    const sampleSize = Number(sampleSizeSelect.value);
 
-    const filtered = allData.filter(row =>
-        row.dgm === dgm && row.ci_test === test
-    );
-
-    // Calibration Plot (Type I error vs Significance Level, effect_size == 0)
-    const calibData = filtered.filter(r => r.effect_size === 0);
+    // Calibration plot: Type I error vs significance_level, effect_size == 0
+    const calibData = allData.filter(r => r.dgm === dgm && r.sample_size === sampleSize && r.effect_size === 0);
     const calibSLs = calibData.map(r => r.significance_level);
     const calibT1 = calibData.map(r => r.type1_error);
 
-    // Rendering Calibration Plot 
     if (chartCalibration) chartCalibration.destroy();
     chartCalibration = new Chart(document.getElementById('calibration-plot').getContext('2d'), {
         type: 'line',
         data: {
-
-            datasets: calibDatasets , 
-
             labels: calibSLs,
             datasets: [{
                 label: 'Type I Error',
@@ -166,14 +146,10 @@ function renderCharts() {
                 pointRadius: 4,
                 fill: true,
             }]
-
         },
         options: {
             responsive: true,
-            plugins: {
-
-                legend: { display: true }
-            },
+            plugins: { legend: { display: true } },
             scales: {
                 x: { title: { display: true, text: 'Significance Level' }, min: 0, max: 1 },
                 y: { title: { display: true, text: 'Type I Error' }, min: 0, max: 1 }
@@ -181,18 +157,16 @@ function renderCharts() {
         }
     });
 
-
-    // --- Power Plot: Power vs effect size ---
+    // Power plot: Power vs effect size, significance_level == 0.05
     const powerData = allData.filter(row =>
         row.dgm === dgm &&
         row.sample_size === sampleSize &&
         row.significance_level === 0.05
     );
+    // Group by ci_test (for legend, since benchmark may run several tests)
     const ciTestsPower = Array.from(new Set(powerData.map(r => r.ci_test)));
-
     const powerDatasets = ciTestsPower.map((ciTest, idx) => {
-        const rows = powerData.filter(r => r.ci_test === ciTest);
-        rows.sort((a, b) => a.effect_size - b.effect_size);
+        const rows = powerData.filter(r => r.ci_test === ciTest).sort((a, b) => a.effect_size - b.effect_size);
         return {
             label: ciTest,
             data: rows.map(r => ({ x: r.effect_size, y: r.power })),
@@ -203,44 +177,23 @@ function renderCharts() {
         };
     });
 
-
-    //  Rendering Power Plot 
     if (chartPower) chartPower.destroy();
     chartPower = new Chart(document.getElementById('power-plot').getContext('2d'), {
         type: 'line',
         data: {
-
-            datasets: powerDatasets , 
-            labels: sampleSizes,
-            datasets: [{
-                label: 'Power',
-                data: powers,
-                borderColor: 'rgba(255,99,132,1)',
-                backgroundColor: 'rgba(255,99,132,0.2)',
-                pointRadius: 4,
-                fill: true,
-            }]
-
+            datasets: powerDatasets
         },
         options: {
             responsive: true,
-            plugins: {
-
-                legend: { display: true }
-
-            },
+            plugins: { legend: { display: true } },
             scales: {
                 x: { title: { display: true, text: 'Effect Size' }, min: 0, max: 1 },
-
                 y: { title: { display: true, text: 'Power' }, min: 0, max: 1 }
             }
         }
     });
 }
 
-function showStatus(msg, status) {
-    console.log(`[${status}] ${msg}`);
-}
 function chartColor(idx, alpha = 1) {
     const colors = [
         `rgba(54, 162, 235, ${alpha})`,   // blue
