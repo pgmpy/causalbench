@@ -321,6 +321,6 @@ if __name__ == "__main__":
     web_results_dir = os.path.join("web", "results")
     os.makedirs(web_results_dir, exist_ok=True)
     src = os.path.join("results", "ci_benchmark_summaries.csv")
-    dst = os.path.join(web_results_dir, "default_ci_benchmark_summaries.csv")
+    dst = os.path.join(web_results_dir, "ci_benchmark_summaries.csv")
     shutil.copyfile(src, dst)
     print(f"Copied summary CSV to {dst} for web UI.")
