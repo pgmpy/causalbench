@@ -1,23 +1,44 @@
 const DGM_META = {
     "linear_gaussian": {
         name: "Linear Gaussian",
-        equation: '\\( X = \\alpha^T Z + \\varepsilon_1;\\; Y = \\beta^T Z + \\text{effect\_size}\\cdot X + \\varepsilon_2 \\)'
+        equation: `\\begin{align}
+        X &= \\alpha^T Z + \\varepsilon_1 \\\\
+        Y &= \\beta^T Z + \\text{effect\\_size} \\cdot X + \\varepsilon_2
+        \\end{align}
+        \\text{where } \\varepsilon_1, \\varepsilon_2 \\sim \\mathcal{N}(0, \\sigma^2) \\text{ (Gaussian noise)}`
     },
     "nonlinear_gaussian": {
         name: "Nonlinear Gaussian",
-        equation: '\\( X = \\sin(\\text{effect\_size} \\cdot \\sum_j Z_j) + \\varepsilon_1;\\; Y = \\exp(\\text{effect\_size} \\cdot \\sum_j Z_j \\cdot 0.2) + \\varepsilon_2 \\)'
+        equation: `\\begin{align}
+        X &= \\sin(\\text{effect\\_size} \\cdot \\sum_j Z_j) + \\varepsilon_1 \\\\
+        Y &= \\exp(\\text{effect\\_size} \\cdot \\sum_j Z_j \\cdot 0.2) + \\varepsilon_2
+        \\end{align}
+        \\text{where } \\varepsilon_1, \\varepsilon_2 \\sim \\mathcal{N}(0, \\sigma^2) \\text{ (Gaussian noise)}`
     },
     "discrete_categorical": {
         name: "Discrete Categorical",
-        equation: '\\( Z_j \\sim \\mathrm{DiscreteUniform}(0, n_{\\text{categories}}-1);\\; X = \\sum_j Z_j + \\text{noise};\\; Y = \\sum_j Z_j + \\text{noise} \\)'
+        equation: `\\begin{align}
+        Z_j &\\sim \\text{DiscreteUniform}(0, n_{\\text{categories}}-1) \\\\
+        X &= \\sum_j Z_j + \\varepsilon_1 \\\\
+        Y &= \\sum_j Z_j + \\varepsilon_2
+        \\end{align}
+        \\text{where } \\varepsilon_1, \\varepsilon_2 \\sim \\mathcal{N}(0, \\sigma^2) \\text{ (Gaussian noise)}`
     },
     "mixed_data": {
         name: "Mixed Data",
-        equation: '\\( X = Z^T \\alpha + \\varepsilon_1;\\; Y = Z^T \\beta + \\text{effect\_size} \\cdot X + \\varepsilon_2 \\)'
+        equation: `\\begin{align}
+        X &= Z^T \\alpha + \\varepsilon_1 \\\\
+        Y &= Z^T \\beta + \\text{effect\\_size} \\cdot X + \\varepsilon_2
+        \\end{align}
+        \\text{where } \\varepsilon_1, \\varepsilon_2 \\sim \\mathcal{N}(0, \\sigma^2) \\text{ (Gaussian noise)}`
     },
     "non_gaussian_continuous": {
         name: "Non-Gaussian Continuous",
-        equation: '\\( X = |Z^T \\alpha| + e_1,\\; e_1 \\sim \\mathrm{Exponential}(1.0);\\; Y = (Z^T \\beta)^2 + \\text{effect\\_size} \\cdot X + e_2,\\; e_2 \\sim \\mathrm{Exponential}(1.0) \\)'
+        equation: `\\begin{align}
+        X &= |Z^T \\alpha| + \\varepsilon_1 \\\\
+        Y &= (Z^T \\beta)^2 + \\text{effect\\_size} \\cdot X + \\varepsilon_2
+        \\end{align}
+        \\text{where } \\varepsilon_1, \\varepsilon_2 \\sim \\text{Exponential}(\\lambda = 1.0) \\text{ (Exponential noise)}`
     }
 };
 
@@ -75,6 +96,7 @@ function parseCSV(csvText) {
         )
     );
 }
+
 function parseValue(v) {
     if (!isNaN(parseFloat(v)) && isFinite(v)) return parseFloat(v);
     if (v === 'True') return true;
@@ -123,6 +145,28 @@ function updateDGMEquation() {
     if (window.MathJax) MathJax.typesetPromise([dgmEquationEl]);
 }
 
+function computeStats(data, groupBy, valueCol) {
+    const grouped = {};
+    data.forEach(row => {
+        const key = groupBy(row);
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(row[valueCol]);
+    });
+    
+    return Object.entries(grouped).map(([key, values]) => {
+        const mean = values.reduce((a, b) => a + b, 0) / values.length;
+        const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
+        const stderr = Math.sqrt(variance / values.length);
+        return {
+            key: parseFloat(key),
+            mean,
+            stderr,
+            upper: mean + stderr,
+            lower: Math.max(0, mean - stderr)
+        };
+    }).sort((a, b) => a.key - b.key);
+}
+
 function renderCharts() {
     if (!allData.length) return;
     const dgm = dgmSelect.value;
@@ -130,29 +174,72 @@ function renderCharts() {
 
     // Calibration plot: Type I error vs significance_level, effect_size == 0
     const calibData = allData.filter(r => r.dgm === dgm && r.sample_size === sampleSize && r.effect_size === 0);
-    const calibSLs = calibData.map(r => r.significance_level);
-    const calibT1 = calibData.map(r => r.type1_error);
+    const ciTestsCalib = Array.from(new Set(calibData.map(r => r.ci_test)));
+    
+    const calibDatasets = ciTestsCalib.map((ciTest, idx) => {
+        const testData = calibData.filter(r => r.ci_test === ciTest);
+        const stats = computeStats(testData, row => row.significance_level, 'type1_error');
+        
+        return [
+            {
+                label: `${ciTest}`,
+                data: stats.map(s => ({ x: s.key, y: s.mean })),
+                borderColor: chartColor(idx, 1),
+                backgroundColor: chartColor(idx, 0.2),
+                pointRadius: 4,
+                fill: false,
+                tension: 0.2
+            },
+            // Added ribbon plot for standard error
+            {
+                label: `${ciTest} - Error Band`,
+                data: stats.map(s => ({ x: s.key, y: s.upper })),
+                borderColor: chartColor(idx, 0),
+                backgroundColor: chartColor(idx, 0.15),
+                fill: '+1',
+                pointRadius: 0,
+                tension: 0.2
+            },
+            {
+                label: `${ciTest} - Lower`,
+                data: stats.map(s => ({ x: s.key, y: s.lower })),
+                borderColor: chartColor(idx, 0),
+                backgroundColor: chartColor(idx, 0.15),
+                fill: false,
+                pointRadius: 0,
+                tension: 0.2
+            }
+        ];
+    }).flat();
 
     if (chartCalibration) chartCalibration.destroy();
     chartCalibration = new Chart(document.getElementById('calibration-plot').getContext('2d'), {
         type: 'line',
         data: {
-            labels: calibSLs,
-            datasets: [{
-                label: 'Type I Error',
-                data: calibT1,
-                borderColor: 'rgba(54, 162, 235, 1)',
-                backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                pointRadius: 4,
-                fill: true,
-            }]
+            datasets: calibDatasets
         },
         options: {
             responsive: true,
-            plugins: { legend: { display: true } },
+            maintainAspectRatio: true,
+            aspectRatio: 1.6, 
+            plugins: { 
+                legend: { 
+                    display: true,
+                    filter: (legendItem) => !legendItem.text.includes('Band') && !legendItem.text.includes('Lower')
+                } 
+            },
             scales: {
-                x: { title: { display: true, text: 'Significance Level' }, min: 0, max: 1 },
-                y: { title: { display: true, text: 'Type I Error' }, min: 0, max: 1 }
+                x: { 
+                    title: { display: true, text: 'Significance Level' }, 
+                    min: 0, 
+                    max: 1,
+                    type: 'linear'
+                },
+                y: { 
+                    title: { display: true, text: 'Type I Error' }, 
+                    min: 0, 
+                    max: 1 
+                }
             }
         }
     });
@@ -163,19 +250,42 @@ function renderCharts() {
         row.sample_size === sampleSize &&
         row.significance_level === 0.05
     );
-    // Group by ci_test (for legend, since benchmark may run several tests)
+    
     const ciTestsPower = Array.from(new Set(powerData.map(r => r.ci_test)));
     const powerDatasets = ciTestsPower.map((ciTest, idx) => {
-        const rows = powerData.filter(r => r.ci_test === ciTest).sort((a, b) => a.effect_size - b.effect_size);
-        return {
-            label: ciTest,
-            data: rows.map(r => ({ x: r.effect_size, y: r.power })),
-            borderColor: chartColor(idx, 1),
-            backgroundColor: chartColor(idx, 0.2),
-            pointRadius: 3,
-            fill: false
-        };
-    });
+        const testData = powerData.filter(r => r.ci_test === ciTest);
+        const stats = computeStats(testData, row => row.effect_size, 'power');
+        
+        return [
+            {
+                label: `${ciTest}`,
+                data: stats.map(s => ({ x: s.key, y: s.mean })),
+                borderColor: chartColor(idx, 1),
+                backgroundColor: chartColor(idx, 0.2),
+                pointRadius: 3,
+                fill: false,
+                tension: 0.2
+            },
+            {
+                label: `${ciTest} - Error Band`,
+                data: stats.map(s => ({ x: s.key, y: s.upper })),
+                borderColor: chartColor(idx, 0),
+                backgroundColor: chartColor(idx, 0.15),
+                fill: '+1',
+                pointRadius: 0,
+                tension: 0.2
+            },
+            {
+                label: `${ciTest} - Lower`,
+                data: stats.map(s => ({ x: s.key, y: s.lower })),
+                borderColor: chartColor(idx, 0),
+                backgroundColor: chartColor(idx, 0.15),
+                fill: false,
+                pointRadius: 0,
+                tension: 0.2
+            }
+        ];
+    }).flat();
 
     if (chartPower) chartPower.destroy();
     chartPower = new Chart(document.getElementById('power-plot').getContext('2d'), {
@@ -185,10 +295,26 @@ function renderCharts() {
         },
         options: {
             responsive: true,
-            plugins: { legend: { display: true } },
+            maintainAspectRatio: true,
+            aspectRatio: 1.6,
+            plugins: { 
+                legend: { 
+                    display: true,
+                    filter: (legendItem) => !legendItem.text.includes('Band') && !legendItem.text.includes('Lower')
+                } 
+            },
             scales: {
-                x: { title: { display: true, text: 'Effect Size' }, min: 0, max: 1 },
-                y: { title: { display: true, text: 'Power' }, min: 0, max: 1 }
+                x: { 
+                    title: { display: true, text: 'Effect Size' }, 
+                    min: 0, 
+                    max: 1,
+                    type: 'linear'
+                },
+                y: { 
+                    title: { display: true, text: 'Power' }, 
+                    min: 0, 
+                    max: 1 
+                }
             }
         }
     });
