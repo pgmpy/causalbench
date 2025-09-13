@@ -1,8 +1,9 @@
 import numpy as np
+import pandas as pd
+import networkx as nx
 from pgmpy.base import DAG
 from pgmpy.estimators import PC, GES
 from pgmpy.metrics import SHD
-from pgmpy.factors.continuous import LinearGaussianCPD
 from pgmpy.models import LinearGaussianBayesianNetwork as LGBN
 
 """
@@ -30,82 +31,46 @@ Metric:
   one DAG into another.
 """
 
-def generate_random_dag(num_nodes: int, edge_prob: float = 0.3, seed: int = 0) -> DAG:
-    dag = DAG.get_random(n_nodes=num_nodes, edge_prob=edge_prob, seed=seed)
-    for i in range(num_nodes):
-        dag.add_node(f"X_{i}")
-    return dag
-
 # Benchmark parameters
 num_trials = 10
-shd_pc_list = []
-shd_ges_list = []
+results = []
 
-# Run trials
 for trial in range(num_trials):
     np.random.seed(trial)
     print(f"\nTrial {trial + 1}/{num_trials}")
 
-    true_dag = generate_random_dag(num_nodes=5, edge_prob=0.3, seed=trial)
+    # Generate random true model
+    lgbn = LGBN.get_random(n_nodes=5, edge_prob=0.3, seed=trial)
+    true_dag = DAG(lgbn.edges())
+    true_dag.add_nodes_from(lgbn.nodes()) 
 
-    lgbn = LGBN(true_dag.edges())
-    lgbn.add_nodes_from(true_dag.nodes())
-    for node in true_dag.nodes():
-        parents = list(lgbn.get_parents(node))
-        beta = [0.0] + list(np.random.uniform(0.5, 1.5, size=len(parents)))
-        cpd = LinearGaussianCPD(variable=node, beta=beta, std=1, evidence=parents)
-        lgbn.add_cpds(cpd)
-
+    # Simulate data
     data = lgbn.simulate(n=1000)
 
-    # PC Estimation
-    try:
-        learned_dag_pc = PC(data).estimate(
-            ci_test="pearsonr",
-            variant="stable",
-            return_type="dag",
-        )
-    except Exception as e:
-        print(" PC estimation failed:", e)
-        continue
+    # PC estimation
+    pc_est = PC(data).estimate(ci_test="pearsonr", variant="stable", return_type="dag")
+    learned_dag_pc = nx.DiGraph(pc_est.edges())
 
-    # GES Estimation
-    try:
-        ges_out = GES(data).estimate(scoring_method="bic-g")
-        learned_dag_ges = (
-            ges_out["model"]
-            if isinstance(ges_out, dict) and "model" in ges_out
-            else (ges_out[0] if isinstance(ges_out, tuple) else ges_out)
-        )
-    except Exception as e:
-        print(" GES estimation failed:", e)
-        continue
+    # GES estimation
+    ges_out = GES(data).estimate(scoring_method="bic-g")
+    ges_model = ges_out["model"] if isinstance(ges_out, dict) else ges_out
+    learned_dag_ges = nx.DiGraph(ges_model.edges())
 
-    # Ensure node alignment
-    all_nodes = sorted(set(true_dag.nodes()).union(
-        set(learned_dag_pc.nodes())).union(set(learned_dag_ges.nodes())))
-    true_dag.add_nodes_from(all_nodes)
-    learned_dag_pc.add_nodes_from(all_nodes)
-    learned_dag_ges.add_nodes_from(all_nodes)
+    # Debug: show node sets before SHD
+    print(" True nodes:   ", set(true_dag.nodes()))
+    print(" PC nodes:     ", set(learned_dag_pc.nodes()))
+    print(" GES nodes:    ", set(learned_dag_ges.nodes()))
 
-    # Compute SHD using built-in method
-    try:
-        shd_pc = SHD(true_dag, learned_dag_pc)
-        shd_ges = SHD(true_dag, learned_dag_ges)
-    except Exception as e:
-        print(" SHD computation failed:", e)
-        print(" true_dag edges:", true_dag.edges())
-        print(" learned_dag_pc edges:", learned_dag_pc.edges())
-        print(" learned_dag_ges edges:", learned_dag_ges.edges())
-        continue
+    # Compute SHD (this will crash if node sets differ)
+    shd_pc = SHD(true_dag, learned_dag_pc)
+    shd_ges = SHD(true_dag, learned_dag_ges)
 
-    shd_pc_list.append(shd_pc)
-    shd_ges_list.append(shd_ges)
-
+    results.append({"trial": trial + 1, "shd_pc": shd_pc, "shd_ges": shd_ges})
     print(" SHD (PC):", shd_pc)
     print(" SHD (GES):", shd_ges)
 
-# Final Results
-print(f"\nAverage SHD over {len(shd_pc_list)} successful trials:")
-print(f"  PC:  {np.mean(shd_pc_list):.2f} ± {np.std(shd_pc_list):.2f}")
-print(f"  GES: {np.mean(shd_ges_list):.2f} ± {np.std(shd_ges_list):.2f}")
+# Summary
+df = pd.DataFrame(results)
+print("\nAverage SHD over trials:")
+print(f"  PC:  {df['shd_pc'].mean():.2f} ± {df['shd_pc'].std():.2f}")
+print(f"  GES: {df['shd_ges'].mean():.2f} ± {df['shd_ges'].std():.2f}")
